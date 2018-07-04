@@ -48,19 +48,22 @@ class GraphCNNExperiment(object):
         self.reports = {}
         self.silent = False
         self.optimizer = 'momentum'
-        self.kFold = False
-        self.extract = False #to extract features from all data points
+        self.kFold = False #ignore, keep False always
+        self.extract = False #make True to extract features from all samples, keep False while training
         if self.extract==True:
             self.train_batch_size = 2100
         
         self.net_constructor = net_constructor
         self.net = GraphCNNNetwork()
-        self.net.extract = self.extract
+        self.net.extract = self.extract 
         self.net_desc = GraphCNNNetworkDescription()
         tf.reset_default_graph()
         self.config = tf.ConfigProto()
         #self.config.gpu_options.allocator_type = 'BFC'
-        self.config.gpu_options.per_process_gpu_memory_fraction = 0.2
+         os.environ["CUDA_VISIBLE_DEVICES"] = '0’ # assigned gpu
+        self.config.gpu_options.per_process_gpu_memory_fraction = 0.2 # fraction of gpu
+       
+
 
 
         
@@ -80,7 +83,7 @@ class GraphCNNExperiment(object):
             max_it = self.load_model(sess, saver)
             return sess.run(max_acc_test), max_it
     
-        # Run all folds in a CV and calculate mean/std
+    # Run the experiment
     def run_experiments(self, beta=1.0, test_split=0.2, threshold=0.5):
         self.net_constructor.create_network(self.net_desc, []) #calling th function in run_graph file to create network
         desc = self.net_desc.get_description()
@@ -88,8 +91,8 @@ class GraphCNNExperiment(object):
         start_time = time.time()
         self.limit = 0.5 - threshold
         tf.reset_default_graph() #check this line
-        self.create_test_train(test_split=test_split)
-        f_score = self.run(beta=beta)
+        self.create_test_train(test_split=test_split) # create test train split
+        f_score = self.run(beta=beta) # run the code
         self.print_ext('fscore is: %f' % (f_score))
         acc = f_score
         
@@ -150,7 +153,7 @@ class GraphCNNExperiment(object):
         
 
         
-        
+    # uses the broad categories of UCMERCED to create balanced split    
     def create_test_train(self, test_split=0.2):
       
         indC = range(0,2100)
@@ -248,15 +251,7 @@ class GraphCNNExperiment(object):
                         labels = self.graph_labels[self.train_idx, :]
                         weights = self.weights[self.train_idx,:,:]
                         graph_size = self.graph_size[self.train_idx]
-                    # else:
-                    #     vertices = self.graph_vertices
-                    #     adjacency = self.graph_adjacency
-                    #     # adjacency = adjacency[:, :, :, self.train_idx]
-                    #     labels = self.graph_labels
-                    #     graph_size = self.graph_size
-                    # input_mask = np.zeros([1, self.largest_graph, 1]).astype(np.float32)
-                    # input_mask[:, self.train_idx, :] = 1
-                    # training_samples = [s[self.train_idx] for s in training_samples]
+                 
                     if self.extract == True:
                         training_samples = [vertices, adjacency, labels, weights, self.index, self.classes]
                     else:
@@ -276,10 +271,7 @@ class GraphCNNExperiment(object):
                     else:
                         single_sample=tf.train.slice_input_producer(training_samples,shuffle=True,capacity=self.train_batch_size)
                     
-                    # Cropping samples improves performance but is not required
-                    # if self.crop_if_possible:
-                        # self.print_ext('Cropping smaller graphs')
-                        # single_sample = self.crop_single_sample(single_sample)
+                  
                     
                     # creates training batch queue
                     if self.extract == True:
@@ -329,13 +321,9 @@ class GraphCNNExperiment(object):
                 with tf.variable_scope('test_data') as scope:
                     self.print_ext('Creating test Tensorflow Tensors')
                     
-                    # Create tensor with all test samples
-                    # test_samples = [self.graph_vertices, self.graph_adjacency, self.graph_labels, self.graph_size]
-                    # test_samples = [s[self.test_idx] for s in test_samples]
-                    # if self.kFold:
+                  
                     vertices = self.graph_vertices[self.test_idx, :, :]
                     adjacency = self.graph_adjacency[self.test_idx, :, :, :]
-                    # adjacency = adjacency[:, :, :, self.train_idx]
                     labels = self.graph_labels[self.test_idx, :]
                     weights = self.weights[self.test_idx,:,:]
                     graph_size = self.graph_size[self.test_idx]
@@ -353,9 +341,7 @@ class GraphCNNExperiment(object):
                         test_samples = self.create_input_variable(test_samples)
                         
                         single_sample = tf.train.slice_input_producer(test_samples, shuffle=True, capacity=self.test_batch_size)
-                        # if self.crop_if_possible:
-                            # single_sample = self.crop_single_sample(single_sample)
-                            
+                  
                         test_queue = _make_batch_queue(single_sample, capacity=self.test_batch_size*2, num_threads=1)
                         
                     # If using full-batch no need for queues
@@ -367,12 +353,7 @@ class GraphCNNExperiment(object):
                             var = tf.cast(test_samples[i],tf.float32)
                             test_samples[i] = var
 
-                            # test_samples = tf.cast(test_samples, tf.int64)
-                            
-                # obtain batch depending on is_training and if test is a queue
-                
-                #if self.val_batch_size == self.no_samples_test:
-                    #return tf.cond(self.net.is_training, lambda: train_queue.dequeue_many(self.train_batch_size), lambda: test_samples)
+             
                 # self.net.is_training = 1 => train, 
                 #                      = 0 => validate, 
                 #                      = else => test
@@ -392,18 +373,15 @@ class GraphCNNExperiment(object):
             self.print_ext('Creating loss function and summaries')
             self.print_ext('Shape of logits is:',self.net.current_V.get_shape(),'and shape of labels is:',self.net.labels.get_shape())
             self.net.labels = tf.cast(self.net.labels,'float32')
-            # epsilon = tf.constant(value=1e-10)
-            # self.net.current_V = tf.add(self.net.current_V, epsilon)
             self.net.current_V_weighted = tf.multiply(self.net.current_V, self.label_wt)
+            
             # casting label and prediction into float64 to remove tf reduce_mean error
             current_V_f64 = tf.cast(self.net.current_V,'float64')
             labels_f64 = tf.cast(self.net.labels,'float64')            
             
             cross_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.net.current_V, labels=self.net.labels))
             
-            # tot_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.net.current_V, labels=self.net.labels)
-            # mask = tf.cast(tf.squeeze(self.net.current_mask, axis=-1), dtype=tf.float32)
-            # cross_entropy_weighted  = tf.reduce_mean(tf.matmul(tf.transpose(tot_loss,[1,0]), mask)) 
+         
             
             cross_entropy_weighted  = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.net.current_V_weighted, labels=self.net.labels))
             # cross_entropy_weighted  = tf.reduce_mean(tf.nn.weighted_cross_entropy_with_logits(logits=self.net.current_V, targets=self.net.labels, pos_weight=mask)) 
@@ -411,7 +389,7 @@ class GraphCNNExperiment(object):
             # cross_entropy = self.loss(logits=self.net.current_V, labels=self.net.labels)
             #making values beyond the threshold 1
             self.features = self.net.current_V
-            self.net.current_V = tf.add(tf.nn.sigmoid(self.net.current_V), self.limit)
+            self.net.current_V = tf.add(tf.nn.sigmoid(self.net.current_V), self.limit) # add threshold adjusting value to inc or dec threshold
             self.net.current_V = tf.minimum(tf.round(self.net.current_V),1)
             self.max_acc_train = tf.Variable(tf.zeros([]), name="max_acc_train")
             self.max_acc_test = tf.Variable(tf.zeros([]), name="max_acc_test")
@@ -419,21 +397,13 @@ class GraphCNNExperiment(object):
             
             tf.add_to_collection('losses', cross_entropy)
             
-            # tf.summary.scalar('accuracy', accuracy)
-            # tf.summary.scalar('max_accuracy', max_acc)
+            
             tf.summary.scalar('cross_entropy', cross_entropy)
             tf.summary.scalar('cross_entropy_weighted', cross_entropy_weighted)
-            # tf.summary.scalar('precision',prec)
-            # tf.summary.scalar('recall',rec)
-            # tf.summary.scalar('fscore',f_score)
-            # tf.summary.scalar('hamm_score',hamm_score)                    
+                              
             tf.summary.histogram('prediction',self.net.current_V)
             tf.summary.histogram('actual_labels',self.net.labels)
-            # tf.summary.histogram('difference',self.difference)
-            
-            # if silent == false display these statistics:
-            # self.reports['accuracy'] = accuracy
-            # self.reports['max acc.'] = max_acc
+           
             self.reports['cross_entropy'] = cross_entropy
             self.reports['prediction'] = self.net.current_V
             self.reports['prediction_weighted'] = self.net.current_V_weighted
@@ -446,11 +416,7 @@ class GraphCNNExperiment(object):
             if self.extract == True:
                 self.reports['index'] = self.net.index
                 self.reports['classes'] = self.net.classes
-            # self.reports['prec'] = prec
-            # self.reports['rec'] = rec
-            # self.reports['fscore'] = f_score
-            # self.reports['hamm_score'] = hamm_score
-            # self.reports['difference'] = self.difference
+          
         
     # check if the model has a saved iteration and return the latest iteration step
     def check_model_iteration(self):
@@ -493,50 +459,25 @@ class GraphCNNExperiment(object):
         hamm_score_test = np.zeros((self.val_batch_size))
         fbeta_train = np.zeros((self.train_batch_size))
         fbeta_test = np.zeros((self.val_batch_size))
-        
-        
-        
-        
-        with open('./results/predictions_test.csv', 'w') as csvfile:
-            fieldnames = ['actual_labels', 'predictions']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-        
-        with open('./results/scores_test.csv', 'w') as csvfile:
-            fieldnames = ['hamm_score', 'fbeta_score']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-        
-        with open('./results/predictions_train.csv', 'w') as csvfile:
-            fieldnames = ['actual_labels', 'predictions']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-        with open('./results/scores_train.csv', 'w') as csvfile:
-            fieldnames = ['hamm_score', 'fbeta_score']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
+       
             
         path = '/src'
         
         self.print_ext('Training model "%s"!' % self.model_name)
-        if self.kFold and hasattr(self, 'fold_id') and self.fold_id:
-            self.snapshot_path = './snapshots/%s/%s/' % (self.dataset_name, self.model_name + '_fold%d' % self.fold_id)
-            self.test_summary_path = './summary/%s/test/%s_fold%d' %(self.dataset_name, self.model_name, self.fold_id)
-            self.train_summary_path = './summary/%s/train/%s_fold%d' %(self.dataset_name, self.model_name, self.fold_id)
-        else:
-            # Directory name changed from snapshots to snapshots_test
-            self.snapshot_path = path+'/snapshots/%s/%s/' % (self.dataset_name, self.model_name)
-            self.test_summary_path = path+'/summary/%s/test/%s' %(self.dataset_name, self.model_name)
-            self.train_summary_path = path+'/summary/%s/train/%s' %(self.dataset_name, self.model_name)
-        
-        if self.extract==False:
+      
+        # snapshot and summary path (change here to load a trained network)
+        self.snapshot_path = path+'/snapshots/%s/%s/' % (self.dataset_name, self.model_name)
+        self.test_summary_path = path+'/summary/%s/test/%s' %(self.dataset_name, self.model_name)
+        self.train_summary_path = path+'/summary/%s/train/%s' %(self.dataset_name, self.model_name)
+
+        if self.extract==False: #checking whether extract or train
         # if 0:
             i = 0
         else:
             self.print_ext(self.snapshot_path)
             i = self.check_model_iteration()
         
-        if i < self.num_iterations:
+        if i < self.num_iterations: #training phase if already trained number of iterations less than defined
             self.print_ext('Creating training network')
             
             self.net.is_training = tf.placeholder(tf.int32, shape=())
@@ -555,11 +496,12 @@ class GraphCNNExperiment(object):
             tf.summary.scalar('fscore',f_score)
             tf.summary.scalar('hamm_loss',hamm_loss)
             
+            # defininf the graph
+            input = self.create_data() #creating data (queues,etc)
+            self.net_constructor.create_network(self.net, input) #creating network
+            self.create_loss_function() #creating loss function
             
-            input = self.create_data()
-            self.net_constructor.create_network(self.net, input)
-            self.create_loss_function()
-            
+            # adding loss to collection
             self.print_ext('Preparing training')
             loss = tf.add_n(tf.get_collection('losses'))
             if len(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)) > 0:
@@ -568,7 +510,7 @@ class GraphCNNExperiment(object):
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             
             
-            
+            # optimization
             with tf.control_dependencies(update_ops):
                 if self.optimizer == 'adam':
                     train_step = tf.train.AdamOptimizer(learning_rate=self.starter_learning_rate).minimize(loss, global_step=self.net.global_step)
@@ -585,23 +527,16 @@ class GraphCNNExperiment(object):
                 
                 if 1:
                     saver = tf.train.Saver()
-                    #self.load_model(sess, saver)
-                    if self.kFold:
-                        snapshot_path_latest = './snapshots/%s/%s/' % (self.dataset_name, self.model_name + '_fold%d' % (self.fold_id-1))
-                        latest = tf.train.latest_checkpoint(snapshot_path_latest)
+                  
                     
                     # Directory name changed from snapshots to snapshots_test
                     snapshot_path_latest2 = path+'/snapshots/%s/%s/' % (self.dataset_name, self.model_name)
                     latest2 = tf.train.latest_checkpoint(snapshot_path_latest2)
                     
-                    if self.kFold and latest != None:
-                        saver.restore(sess, latest)
-                        cur_i = int(latest[len(snapshot_path_latest + 'model-'):])
-                        print_ext('Restoring last models fold-%d checkpoint at %d' % ((self.fold_id-1),cur_i))
-                    elif latest2 != None:
-                        saver.restore(sess, latest2)
-                        cur_i = int(latest2[len(snapshot_path_latest2 + 'model-'):])
-                        print_ext('Restoring last models default checkpoint at %d' % cur_i)
+
+                    saver.restore(sess, latest2)
+                    cur_i = int(latest2[len(snapshot_path_latest2 + 'model-'):])
+                    print_ext('Restoring last models default checkpoint at %d' % cur_i)
                                 
                     self.print_ext('Starting summaries')
                     if not os.path.exists(self.train_summary_path):
@@ -635,20 +570,13 @@ class GraphCNNExperiment(object):
                             
                             start_temp = time.time()
                             reports = sess.run(self.reports, feed_dict={self.net.is_training:0})
-                            # print_ext('calculating scores')
                             #calculating precision, recall, fscore and hamming score
                             hamm_score = hamming_loss(reports['actual_labels'],reports['prediction'])
-                            # fbeta_val = fbeta_score(reports['actual_labels'],reports['prediction'], beta=beta,average='samples')
                             precision, recall, fscore, _ = precision_recall_fscore_support(reports['actual_labels'],reports['prediction'],average='samples')
-                            # assign_op_prec = prec.assign(precision)
-                            # assign_op_rec = rec.assign(recall)
-                            # assign_op_fscore = f_score.assign(fscore)
-                            # assign_op_hamm = hamm_loss.assign(hamm_score)
+                          
                             
-                            # summary, _, _, _, _ = sess.run([summary_merged, assign_op_prec, assign_op_rec, assign_op_fscore, assign_op_hamm], feed_dict={self.net.is_training:0})
                             summary = sess.run(summary_merged, feed_dict={self.net.is_training:0, prec:precision, rec: recall, f_score:fscore, hamm_loss:hamm_score})
                             
-                            # sio.savemat('gcn_features.mat', {'features':reports['features']})
                             total_testing += time.time() - start_temp
                             self.print_ext('Test Step %d Finished' % i)
                             
@@ -656,35 +584,19 @@ class GraphCNNExperiment(object):
                                 if key != 'actual_labels' and key!='prediction' and key!='features' and key!='embed_features' and key!='prediction_weighted':
                                     self.print_ext('Test Step %d "%s" = ' % (i, key), value)
                                     
-                            with open('./results/predictions_test.csv', 'a') as csvfile:
-                                fieldnames = ['actual_labels', 'predictions']
-                                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                                writer.writerow({'actual_labels': reports['actual_labels'], 'predictions': reports['prediction']})
-                            with open('./results/scores_test.csv', 'a') as csvfile:
-                                fieldnames = ['hamm_score', 'f_score', 'precision', 'recall']
-                                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                                writer.writerow({'hamm_score': hamm_score, 'f_score': fscore, 'precision': precision, 'recall': recall})
-                                
+                           
                             
                             
                             test_writer.add_summary(summary, i)
                             verify_dir_exists('./results/')
-                            # with open('./results/predictions_test_graph.txt', 'a+') as file:
-                                # file.write('%s\tPrediction:%s\nActual:%s\n' % (str(datetime.now()), reports['prediction'], reports['actual_labels']))
                             
                         start_temp = time.time()
                         _, reports = sess.run([train_step, self.reports], feed_dict={self.net.is_training:1})
                         
                         #calculating precision, recall, fscore and hamming score
                         hamm_score = hamming_loss(reports['actual_labels'],reports['prediction'])
-                        # fbeta_val = fbeta_score(reports['actual_labels'],reports['prediction'], beta=beta,average='samples')
                         precision, recall, fscore, _ = precision_recall_fscore_support(reports['actual_labels'],reports['prediction'],average='samples')
-                        # assign_op_prec = prec.assign(precision)
-                        # assign_op_rec = rec.assign(recall)
-                        # assign_op_fscore = f_score.assign(fscore)
-                        # assign_op_hamm = hamm_loss.assign(hamm_score)
-                        
-                        # summary, _, _, _, _ = sess.run([summary_merged, assign_op_prec, assign_op_rec, assign_op_fscore, assign_op_hamm], feed_dict={self.net.is_training:1})
+                    
                         summary = sess.run(summary_merged, feed_dict={self.net.is_training:1, prec:precision, rec: recall, f_score:fscore, hamm_loss:hamm_score})
                         total_training += time.time() - start_temp
                         i += 1
@@ -697,15 +609,7 @@ class GraphCNNExperiment(object):
                                 if key != 'actual_labels' and key!='prediction' and key!='features' and key!='embed_features' and key!='prediction_weighted':
                                     self.print_ext('Training Step %d "%s" = ' % (i-1, key), value)
                                     
-                            with open('./results/predictions_train.csv', 'a') as csvfile:
-                                fieldnames = ['actual_labels', 'predictions']
-                                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                                writer.writerow({'actual_labels': reports['actual_labels'], 'predictions': reports['prediction']})
-                            with open('./results/scores_train.csv', 'a') as csvfile:
-                                fieldnames = ['hamm_score', 'f_score', 'precision', 'recall']
-                                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                                writer.writerow({'hamm_score': hamm_score, 'f_score': fscore, 'precision': precision, 'recall': recall})
-                            
+                        
                             last_summary = time.time()            
                         if (i-1) % 100 == 0:
                             total_training = 0.0
@@ -722,38 +626,29 @@ class GraphCNNExperiment(object):
                    raisedEx = err
                 finally:
                     if i > 0:
-                        # print_ext('Some error')
                         self.save_model(sess, saver, i)
                     self.print_ext('Training completed, starting cleanup!')
                     self.print_ext('Final testing with test set')
                     reports = sess.run(self.reports, feed_dict={self.net.is_training:-1}) 
-                    # print self.test_idx
-                    # print np.sum(self.test_idx)
-                    # print np.shape(reports['prediction'])
-                    # print np.sum(reports['actual_labels'],axis=0)
-                    # print np.sum(reports['prediction'], axis=0)
+             
                     hamm_score = hamming_loss(reports['actual_labels'],reports['prediction'])
                     precision, recall, fscore, _ = precision_recall_fscore_support(reports['actual_labels'],reports['prediction'],average='samples')
                     self.print_ext('Final accuracy:',fscore,' Precision:',precision,' Recall:',recall,' Hamming loss:',hamm_score)
-                    # self.extract = True
-                    # reports = sess.run(self.reports, feed_dict={self.net.is_training:1}) 
-                    # precision, recall, fscore, _ = precision_recall_fscore_support(reports['actual_labels'],reports['prediction'],average='samples')
-                    # self.print_ext('Final accuracy:',fscore,' Precision:',precision,' Recall:',recall,' Hamming loss:',hamm_score)
-                    # print np.sum(reports['prediction'], axis=0)
+            
                     coord.request_stop()
                     coord.join(threads)
                     self.print_ext('Cleanup completed!')
                     if wasKeyboardInterrupt:
                         raise raisedEx
                 
-                if self.kFold:
-                    return sess.run([self.max_acc_test, self.net.global_step])
-                else:
+               
                     return fscore
-        else:
+        else: 
+            # feature extracting mode (for further analysis, set self.extract True for this, only after training the network
+            # for defined number of iterations, if no. of training iterations less then extract does not work and training resumes)
+            # The snapshots and summary path should refer to the trained network for which you wish to extract features
             self.print_ext('Model "%s" already trained!' % self.model_name)
-            # with tf.Graph().as_default():
-            #dummy = tf.Variable(0)  # dummy variable !!!
+ 
             self.net.is_training = tf.placeholder(tf.int32, shape=())
             prec = tf.placeholder(tf.float32, shape=(), name='precision')
             rec = tf.placeholder(tf.float32, shape=(), name='recall')
@@ -772,21 +667,20 @@ class GraphCNNExperiment(object):
                 coord = tf.train.Coordinator()
                 threads = tf.train.start_queue_runners(sess=sess, coord=coord)
                 num = 2100
-                features_mat = np.zeros((num,17))
-                index_mat = np.zeros((num))
-                class_mat = np.zeros((num))
-                pred_labels = np.zeros((num,17))
-                actual_labels = np.zeros((num,17))
-                embed_features = np.zeros((num,413,256))
-                first_gc_features = np.zeros((num,64,128))
-                second_gc_features = np.zeros((num,32,64))
-                fc_features = np.zeros((num,256))
-                train_idx = self.train_idx
-                val_idx = self.val_idx
-                test_idx = self.test_idx
+                features_mat = np.zeros((num,17)) # to store final layer features
+                index_mat = np.zeros((num)) # to store image index for cross check
+                class_mat = np.zeros((num)) # to store image class number for cross check
+                pred_labels = np.zeros((num,17)) # to store predicted labels
+                actual_labels = np.zeros((num,17)) # to store actual labels
+                embed_features = np.zeros((num,413,256)) # to store embedding layer features
+                first_gc_features = np.zeros((num,64,128)) # to store first graph cnn layer's features
+                second_gc_features = np.zeros((num,32,64)) # to store second graph cnn layer's features
+                fc_features = np.zeros((num,256)) # to store fully-connected layer's features
+                train_idx = self.train_idx # to store train index
+                val_idx = self.val_idx # to store val index
+                test_idx = self.test_idx # to store test index
                 for ind in range(0,num/self.train_batch_size): #processing the datapoints batchwise
                     reports = sess.run(self.reports, feed_dict={self.net.is_training:1})
-                    # features_mat[(ind*self.train_batch_size):((ind+1)*self.train_batch_size),:] = reports['features'] #storing features
                     ind_s = ind*self.train_batch_size
                     ind_e = (ind+1)*self.train_batch_size
                     features_mat[ind_s:ind_e,:] = reports['features'] #storing features
@@ -799,6 +693,7 @@ class GraphCNNExperiment(object):
                     second_gc_features[ind_s:ind_e,:,:] = reports['second_gc_features']
                     fc_features[ind_s:ind_e,:] = reports['fc_features']
                     self.print_ext('Processing %d batch' % ind)
+                # storing the extracted features in mat file
                 sio.savemat('gcn_features_new2.mat', {'features':features_mat, 'index':index_mat, 'classes':class_mat, 'actual_labels': actual_labels, 'embed_features': embed_features, 'pred_labels':pred_labels,'fc_features':fc_features,'first_gc_features':first_gc_features,'second_gc_features':second_gc_features}) #saving
                 sio.savemat('test_train_idx.mat',{'train_ind' : train_idx, 'val_ind': val_idx, 'test_ind': test_idx})
                 hamm_score = hamming_loss(actual_labels, pred_labels)
@@ -806,22 +701,16 @@ class GraphCNNExperiment(object):
                 self.print_ext('Final accuracy:',fscore,' Precision:',precision,' Recall:',recall,' Hamming loss:',hamm_score)
                 hamm_score = hamming_loss(actual_labels[test_idx,:], pred_labels[test_idx,:])
                 precision, recall, fscore, _ = precision_recall_fscore_support(actual_labels[test_idx,:], pred_labels[test_idx,:],average='samples')
-                print np.sum(test_idx)
-                print np.sum(pred_labels[test_idx,:], axis=0)
-                print np.sum(actual_labels, axis=0)
+           
                 self.print_ext('Final accuracy:',fscore,' Precision:',precision,' Recall:',recall,' Hamming loss:',hamm_score)
-                for i in range(0,17):
-                    cm = confusion_matrix(actual_labels[:,i], pred_labels[:,i])
-                    print(cm)
+               
                 
                 coord.request_stop()
                 coord.join(threads)
                 self.print_ext('Cleanup completed!')
                 
             
-            if self.kFold:
-                return self.get_max_accuracy()
-            elif self.extract == False:
+           if self.extract == False:
                 return fbeta_val
             else:
                 return 0
