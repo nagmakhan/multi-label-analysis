@@ -1,6 +1,8 @@
 from graphcnn.layers import *
 from graphcnn.network_description import GraphCNNNetworkDescription
 
+# Refer to Such et al for details
+
 class GraphCNNNetwork(object):
     def __init__(self):
         self.current_V = None
@@ -16,6 +18,7 @@ class GraphCNNNetwork(object):
         self.flag = None
         
     def create_network(self, input):
+        # initializing
         self.current_V = input[0]
         print_ext("Shape of current_V:",self.current_V.get_shape())
         self.current_A = input[1]
@@ -61,9 +64,8 @@ class GraphCNNNetwork(object):
         
     def make_dropout_layer(self, keep_prob=0.5):
         print_ext("Dropout layer")
-        # self.current_V = tf.cond(self.is_training, lambda:tf.nn.dropout(self.current_V, keep_prob=keep_prob), lambda:(self.current_V))
-        # feature extraction phase
        
+        # check whether train or test and then implement dropout       
         self.current_V = tf.case(pred_fn_pairs=[
                              (tf.equal(self.flag,1), lambda:tf.nn.dropout(self.current_V, keep_prob=keep_prob))],                                 default=lambda:(self.current_V), exclusive=False)
         
