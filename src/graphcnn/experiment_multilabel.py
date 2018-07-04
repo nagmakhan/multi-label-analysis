@@ -4,7 +4,6 @@ from graphcnn.layers import *
 from sklearn.model_selection import KFold
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import hamming_loss, fbeta_score, confusion_matrix, precision_recall_fscore_support, confusion_matrix
-from skmultilearn.problem_transform import LabelPowerset # to help stratify while sampling
 import numpy as np
 import tensorflow as tf
 import glob
