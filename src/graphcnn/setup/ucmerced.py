@@ -11,13 +11,11 @@ def load_ucmerced_dataset():
 
     dataset = scipy.io.loadmat('dataset/new_dataset.mat')
     dataset = dataset['new_dataset']
-    # nodes = np.squeeze(dataset['nodes'])
-    edges = np.squeeze(dataset['edges'])
-    index = np.squeeze(dataset['index']) 
-    classes = np.squeeze(dataset['class']) # try class or classes
-    # features = np.squeeze(dataset['features'])
-    # print np.size(features)
-    #loading features in which NaN have been replaced
+    edges = np.squeeze(dataset['edges']) #adjacecny matrix
+    index = np.squeeze(dataset['index'])  # image index to keep track
+    classes = np.squeeze(dataset['class'])  #image class number to keep track
+    
+    #loading features in which NaN values have been replaced
     features = scipy.io.loadmat('dataset/features.mat')
     features = features['features']
     features = features['val']
@@ -25,7 +23,8 @@ def load_ucmerced_dataset():
     for i in range(0,len(features)):
         if np.isnan(features[i]).any() == True:
             print('features %d have NaN:'% i,np.isnan(features[i]).any())
-
+            
+    # loading multi-labels 
     labels = scipy.io.loadmat('dataset/UCMERCED/multilabels/LandUse_multilabels.mat')
     labels = labels['labels']
     labels = np.transpose(labels,(1,0))
