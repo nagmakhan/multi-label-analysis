@@ -3,6 +3,8 @@ import tensorflow as tf
 import numpy as np
 import math
 from tensorflow.contrib.layers.python.layers import utils
+
+# Refer to Such et al for details
          
 def make_variable(name, shape, initializer=tf.truncated_normal_initializer(), regularizer=None):
     dtype = tf.float32
@@ -33,6 +35,7 @@ def make_bn(input, phase, axis=-1, epsilon=0.001, mask=None, num_updates=None, n
         if mask == None:
             batch_mean, batch_var = tf.nn.moments(input, axis_arr)
         else:
+            # weighted moment uses label weights (implemented in this work)
             batch_mean, batch_var = tf.nn.weighted_moments(input, axis_arr, mask)
         gamma = make_variable('gamma', input_size, initializer=tf.constant_initializer(1))
         beta = make_bias_variable('bias', input_size)
