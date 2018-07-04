@@ -5,8 +5,8 @@ This set of codes implements multi-label classification of images using graph co
 To implement the code:
 <ol>
 <li>Check the gpu being used and amount of gpu in <b>src/graphcnn/experiment_multilabel.py</b> file (look for this code snippet in the _init_ function, here 0.2 fraction of gpu0 is being used) <br>
- &nbsp &nbsp os.environ["CUDA_VISIBLE_DEVICES"] = '0’
- &nbsp &nbsp self.config.gpu_options.per_process_gpu_memory_fraction = 0.2 <br>
+ &nbsp &nbsp os.environ["CUDA_VISIBLE_DEVICES"] = '0’ <br>
+ &nbsp &nbsp self.config.gpu_options.per_process_gpu_memory_fraction = 0.2 
  </li> 
 
 <li>If needed change the path of snapshots and summary folders in ‘run’ function of <b>src/graphcnn/experiment_multilabel.py</b> by changing the ‘path’ variable
