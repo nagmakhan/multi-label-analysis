@@ -1,7 +1,6 @@
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import hamming_loss, fbeta_score, confusion_matrix, precision_recall_fscore_support
-from skmultilearn.problem_transform import LabelPowerset, BinaryRelevance # to help stratify while sampling
-from skmultilearn.ensemble.rakeld import RakelD
+from skmultilearn.problem_transform import BinaryRelevance # to help stratify while sampling
 import scipy.io
 import numpy as np
 import time
@@ -17,12 +16,12 @@ features = features['features']
 features = features['val']
 features = features[0]
 
-
+# labels
 labels = scipy.io.loadmat('dataset/UCMERCED/multilabels/LandUse_multilabels.mat')
 labels = labels['labels']
 labels = np.squeeze(np.transpose(labels,(1,0)))
 
-# ## Data pre-process
+# ## Data pre-process - mean of all node features for feeding to conventional classiifers which can not deal with graphs
 print("Pre-processing data")
 graph_size = np.array([s.shape[0] for s in features]).astype(np.int64)   
 largest_graph = max(graph_size)
@@ -30,7 +29,7 @@ features_mat = np.zeros((np.shape(features)[0], largest_graph, np.shape(features
 for i in range(np.shape(features)[0]):
     features_mat[i,:,:] = np.pad(features[i].astype(np.float32), ((0,largest_graph-features[i].shape[0]), (0, 0)), 'constant', constant_values=(0))
     
-features = np.mean(features_mat, axis=1)
+features = np.mean(features_mat, axis=1) #final mean features
 
 
 ## Analysis for GCN
@@ -70,7 +69,7 @@ print("F-score samples:%f" % fscore)
 
 
 
-# using same index as GCN
+# using same index set for train, test and val as GCN for the other classifiers 
 X_train = features[train_ind,:]
 y_train = labels[train_ind, :]
 X_val = features[val_ind,:]
@@ -135,7 +134,7 @@ from sklearn.naive_bayes import GaussianNB
 
 # initialize Label Powerset multi-label classifier
 # with a gaussian naive bayes base classifier
-classifier = LabelPowerset(GaussianNB())
+classifier = BinaryRelevance(GaussianNB())
 
 # train
 start_at=time.time()
