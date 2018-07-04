@@ -5,16 +5,16 @@ from graphcnn.network_description import GraphCNNNetworkDescription
 
 class GraphCNNNetwork(object):
     def __init__(self):
-        self.current_V = None
-        self.current_A = None
-        self.current_mask = None
-        self.labels = None
-        self.embed_features = None
-        self.first_gc_features = None
-        self.second_gc_features = None
-        self.fc_features = None
+        self.current_V = None #the output features of current layer
+        self.current_A = None #the output adjacency matrices of current layer
+        self.current_mask = None #label weights
+        self.labels = None #labels
+        self.embed_features = None   # first embedding layer's features
+        self.first_gc_features = None  # first graph cnn layer's features
+        self.second_gc_features = None  # second graph cnn layer's features
+        self.fc_features = None  # first fully-connected layer's features
         self.network_debug = False
-        self.extract = False
+        self.extract = False # if True then feature extract mode else training mode
         self.flag = None
         
     def create_network(self, input):
@@ -41,8 +41,7 @@ class GraphCNNNetwork(object):
         
     def make_batchnorm_layer(self):
         print_ext("Batch norm layer")
-        # feature extraction phase
-       
+        # label weight sent as mask       
         self.current_V = make_bn(self.current_V, self.flag, mask=self.current_mask, num_updates = self.global_step)
         return self.current_V
         
