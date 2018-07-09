@@ -25,7 +25,7 @@ def load_ucmerced_dataset():
             print('features %d have NaN:'% i,np.isnan(features[i]).any())
             
     # loading multi-labels 
-    labels = scipy.io.loadmat('dataset/UCMERCED/multilabels/LandUse_multilabels.mat')
+    labels = scipy.io.loadmat('dataset/LandUse_multilabels.mat')
     labels = labels['labels']
     labels = np.transpose(labels,(1,0))
     
